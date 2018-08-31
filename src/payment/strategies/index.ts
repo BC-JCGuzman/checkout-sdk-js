@@ -13,5 +13,5 @@ export { KlarnaPaymentStrategy, KlarnaPaymentInitializeOptions } from './klarna'
 export { PaypalExpressPaymentStrategy, PaypalProPaymentStrategy } from './paypal';
 export { ChasePayPaymentStrategy, ChasePayInitializeOptions } from './chasepay';
 export { SquarePaymentStrategy, SquarePaymentInitializeOptions } from './square';
-export { StripePaymentStrategy } from './stripe';
+export { StripePaymentStrategy, StripePaymentInitializeOptions } from './stripe';
 export { WepayPaymentStrategy } from './wepay';
