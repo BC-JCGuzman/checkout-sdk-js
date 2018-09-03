@@ -23,21 +23,21 @@ export default class StripePaymentStrategy extends CreditCardPaymentStrategy {
     initialize(options: PaymentInitializeOptions): Promise<InternalCheckoutSelectors> {
         const { methodId, stripe } = options;
 
-        // Credit card only
         if (!(stripe && stripe.masterpassEnabled)) {
             return super.initialize(options);
         }
 
-        // Masterpass + Credit Card
         return this._store.dispatch(this._paymentMethodActionCreator.loadPaymentMethod(methodId))
             .then( state => {
                 const checkout = state.checkout.getCheckout();
                 const storeConfig = state.config.getStoreConfig();
 
+                // Credit card only
                 if (!checkout) {
                     throw new MissingDataError(MissingDataErrorType.MissingCheckout);
                 }
 
+                // Masterpass + Credit Card
                 if (!storeConfig) {
                     throw new MissingDataError(MissingDataErrorType.MissingCheckoutConfig);
                 }
@@ -47,7 +47,7 @@ export default class StripePaymentStrategy extends CreditCardPaymentStrategy {
                     masterpassOptions: {
                         checkoutId: '',
                         allowedCardTypes: ['master, amex, visa'],
-                        amount: Number.parseFloat(checkout.subtotal).toFixed(2),
+                        amount: checkout.subtotal.toFixed(2),
                         currency: storeConfig.currency.code,
                         cartId: 'cart123',
                     },
@@ -68,15 +68,13 @@ export default class StripePaymentStrategy extends CreditCardPaymentStrategy {
         return super.execute(payload, options);
     }
 
-    private _initializeMasterpassButton(container: string, masterpass: Masterpass, masterPassOptions: MasterpassCheckoutOptions) {
+    private _initializeMasterpassButton(container: string, masterpass: Masterpass, masterPassOptions: MasterpassCheckoutOptions): void {
         const containerElement = document.getElementById(container);
         const buttonHtml = '<a><img id="mpbutton" src="https://static.masterpass.com/dyn/img/btn/global/mp_chk_btn_147x034px.svg"/></a>';
         if (!containerElement) {
             throw new InvalidArgumentError('Unable to create Masterpass button for stripe form due container is missing.');
         }
         containerElement.innerHTML = buttonHtml;
-        containerElement.addEventListener('click', () => {
-            masterpass.checkout(masterPassOptions);
-        });
+        containerElement.addEventListener('click', () => masterpass.checkout(masterPassOptions));
     }
 }
