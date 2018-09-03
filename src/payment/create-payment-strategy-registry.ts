@@ -40,6 +40,7 @@ import { ChasePayPaymentStrategy, ChasePayScriptLoader } from './strategies/chas
 import { KlarnaScriptLoader } from './strategies/klarna';
 import { PaypalScriptLoader } from './strategies/paypal';
 import { SquareScriptLoader } from './strategies/square';
+import { StripeScriptLoader } from './strategies/stripe';
 import { WepayRiskClient } from './strategies/wepay';
 
 export default function createPaymentStrategyRegistry(
@@ -259,6 +260,8 @@ export default function createPaymentStrategyRegistry(
             store,
             orderActionCreator,
             paymentActionCreator,
+            paymentMethodActionCreator,
+            new StripeScriptLoader(scriptLoader)
         )
     );
 
