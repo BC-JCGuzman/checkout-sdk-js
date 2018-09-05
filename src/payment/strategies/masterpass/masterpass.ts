@@ -1,3 +1,4 @@
+<<<<<<< HEAD
 /**
  * The name of the masterpass script that is hosted by the browser window
  */
@@ -46,4 +47,8 @@ export interface MasterpassCheckoutOptions {
      * This optional parameter can be used to override the callbackUrl specified in the Merchant Portal.
      */
     callbackUrl?: string;
+}
+
+export interface MasterpassPaymentInitializeOptions {
+    buttonId: string;
 }
