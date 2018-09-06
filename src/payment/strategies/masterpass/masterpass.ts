@@ -52,3 +52,5 @@ export interface MasterpassCheckoutOptions {
 export interface MasterpassPaymentInitializeOptions {
     buttonId: string;
 }
+
+export type MasterpassCheckoutCallback = () => void;
