@@ -3,7 +3,7 @@ import { RequestSender } from '@bigcommerce/request-sender';
 import { getScriptLoader } from '@bigcommerce/script-loader';
 
 import { BillingAddressActionCreator, BillingAddressRequestSender } from '../billing';
-import { CheckoutActionCreator, CheckoutRequestSender, CheckoutStore, CheckoutValidator } from '../checkout';
+import { CheckoutActionCreator, CheckoutClient, CheckoutRequestSender, CheckoutStore, CheckoutValidator } from '../checkout';
 import { ConfigActionCreator, ConfigRequestSender } from '../config';
 import { OrderActionCreator, OrderRequestSender } from '../order';
 import { RemoteCheckoutActionCreator, RemoteCheckoutRequestSender } from '../remote-checkout';
@@ -257,6 +257,8 @@ export default function createPaymentStrategyRegistry(
     registry.register('masterpass', () =>
         new MasterpassPaymentStrategy(
             store,
+            orderActionCreator,
+            paymentActionCreator,
             paymentMethodActionCreator,
             new MasterpassScriptLoader(scriptLoader)
         )
