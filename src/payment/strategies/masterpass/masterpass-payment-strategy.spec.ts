@@ -38,11 +38,9 @@ describe('MasterpassPaymentStrategy', () => {
     let masterpassScriptLoader: MasterpassScriptLoader;
     let masterpass: Masterpass;
     let requestSender: RequestSender;
-    let scriptLoader: ScriptLoader;
 
     beforeEach(() => {
         paymentMethodMock = { ...getMasterpass(), initializationData: { digitalSessionId: 'digitalSessionId', merchantRequestId: '1234567890' } };
-        scriptLoader = createScriptLoader();
 
         store = createCheckoutStore({
             checkout: getCheckoutState(),

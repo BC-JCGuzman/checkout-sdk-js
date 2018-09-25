@@ -25,7 +25,6 @@ export default class MasterpassPaymentStrategy extends PaymentStrategy {
     private _masterpassClient?: Masterpass;
     private _methodId!: string;
     private _onPaymentSelected: any;
-    private _testMode?: boolean;
     private _paymentMethod?: PaymentMethod;
 
     constructor(
@@ -36,7 +35,6 @@ export default class MasterpassPaymentStrategy extends PaymentStrategy {
         private _masterpassScriptLoader: MasterpassScriptLoader
     ) {
         super(store);
-        this._testMode = true;
         this._masterpassCheckoutCallback = () => {
         };
     }
