@@ -40,32 +40,32 @@ export default class MasterpassPaymentStrategy extends PaymentStrategy {
     }
 
     initialize(options: PaymentInitializeOptions): Promise<InternalCheckoutSelectors> {
+        console.log('Initialize...');
         this._methodId = options.methodId;
 
         if (!options.masterpass) {
-            throw new InvalidArgumentError('Unable to initialize paymen because options.masterpass is missing');
+            throw new InvalidArgumentError('Unable to initialize payment because masterpass options is missing');
         }
 
         // Widget update callback
-        this._onPaymentSelected = options.masterpass.onPaymentSelect;
+        if (this._hasPaymentInfo()) {
+            if (options.masterpass.onPaymentSelect) {
+                options.masterpass.onPaymentSelect();
+            }
+        }
 
-        return this._walletSetup(options.masterpass)
-            .then(() => super.initialize(options))
-            .then(state => {
-                if (this._paymentMethod
-                    && this._paymentMethod.initializationData
-                    && this._paymentMethod.initializationData.nonce
-                ) {
-                    this._onPaymentSelected();
-                } else {
-                    this._masterpassCheckoutCallback();
-                }
-                return state;
-            });
+        return Promise.resolve(this._hasPaymentInfo()).then(hasPaymentInfo => {
+            if (hasPaymentInfo) {
+                return this._walletSetup().then(() => { this._masterpassCheckoutCallback(); });
+            }
+        }).then(() => {
+            return super.initialize(options);
+        }) ;
     }
 
     deinitialize(options?: PaymentRequestOptions): Promise<InternalCheckoutSelectors> {
-        this._masterpassCheckoutCallback = () => {};
+        this._masterpassCheckoutCallback = () => {
+        };
         this._masterpassClient = {} as Masterpass;
         this._onPaymentSelected = undefined;
         this._paymentMethod = undefined;
@@ -75,18 +75,18 @@ export default class MasterpassPaymentStrategy extends PaymentStrategy {
 
     execute(payload: OrderRequestBody, options?: PaymentRequestOptions): Promise<InternalCheckoutSelectors> {
         const { payment, ...order } = payload;
-        const paymentData = payment && payment.paymentData;
 
-        if (!payment || !paymentData) {
+        if (!(payment && payment.paymentData)) {
             throw new PaymentArgumentInvalidError(['payment.paymentData']);
         }
 
+        const paymentData = payment.paymentData;
+        // @ts-ignore
+        const methodId = paymentData.extraData;
+
         return this._store.dispatch(this._orderActionCreator.submitOrder(order, options))
-            .then(() => {
-                return this._store.dispatch(this._paymentMethodActionCreator.loadPaymentMethod(this._methodId))
-                    .then(() => this._store.dispatch(this._paymentActionCreator.submitPayment({ methodId: this._methodId, paymentData })));
-                }
-            );
+            .then(() => this._store.dispatch(this._paymentMethodActionCreator.loadPaymentMethod(methodId)))
+            .then(() => this._store.dispatch(this._paymentActionCreator.submitPayment({ methodId, paymentData })));
     }
 
     private _createMasterpassPayload(paymentMethod: PaymentMethod, checkout: Checkout, storeConfig: StoreConfig): MasterpassCheckoutOptions {
@@ -99,7 +99,11 @@ export default class MasterpassPaymentStrategy extends PaymentStrategy {
         };
     }
 
-    private _walletSetup(options: MasterpassPaymentInitializeOptions): Promise<void> {
+    private _hasPaymentInfo(): boolean {
+        return this._paymentMethod && this._paymentMethod.initializationData && this._paymentMethod.initializationData.nonce;
+    }
+
+    private _walletSetup(): Promise<void> {
         const state = this._store.getState();
         this._paymentMethod = state.paymentMethods.getPaymentMethod(this._methodId);
         const checkout = state.checkout.getCheckout();
@@ -120,12 +124,9 @@ export default class MasterpassPaymentStrategy extends PaymentStrategy {
         const payload = this._createMasterpassPayload(this._paymentMethod, checkout, storeConfig);
 
         return this._masterpassScriptLoader.load(this._paymentMethod.config.testMode)
-            .then(Masterpass => {
-                this._masterpassClient = Masterpass;
+            .then(masterpassClient => {
                 this._masterpassCheckoutCallback = () => {
-                    if (this._masterpassClient) {
-                    this._masterpassClient.checkout(payload);
-                    }
+                    masterpassClient.checkout(payload);
                 };
             });
     }
