@@ -1,5 +1,10 @@
 export interface MasterpassPaymentInitializeOptions {
     /**
+     * The gateway where the masterpass payment will be processed.
+     */
+    gateway?: string;
+
+    /**
      * A callback that gets called when an error occurs.
      */
     onError?(error: Error): void;

@@ -22,6 +22,7 @@ import {
 
 export default class MasterpassPaymentStrategy extends PaymentStrategy {
     private _paymentMethod?: PaymentMethod;
+    private _paymentGateway?: string;
 
     constructor(
         store: CheckoutStore,
@@ -48,16 +49,20 @@ export default class MasterpassPaymentStrategy extends PaymentStrategy {
                 return this._masterpassClientSetup().then(checkoutCallback => checkoutCallback());
             }
 
-            if (options.masterpass && options.masterpass.onPaymentSelect) {
-                options.masterpass.onPaymentSelect();
+            if (options.masterpass) {
+                this._paymentGateway = options.masterpass.gateway;
+                if (options.masterpass.onPaymentSelect) {
+                    options.masterpass.onPaymentSelect();
+                }
             }
         }).then(() => {
             return super.initialize(options);
-        }) ;
+        });
     }
 
     deinitialize(options?: PaymentRequestOptions): Promise<InternalCheckoutSelectors> {
         this._paymentMethod = undefined;
+        this._paymentGateway = undefined;
 
         return super.deinitialize(options);
     }
@@ -69,8 +74,12 @@ export default class MasterpassPaymentStrategy extends PaymentStrategy {
             throw new PaymentArgumentInvalidError(['payment.paymentData']);
         }
 
-        const paymentData = payment.paymentData;
-        const methodId = (paymentData as CreditCardInstrument).extraData;
+        const { paymentData } = payment;
+        const methodId = this._paymentGateway;
+
+        if (!methodId) {
+            throw new MissingDataError(MissingDataErrorType.MissingPaymentMethod);
+        }
 
         return this._store.dispatch(this._orderActionCreator.submitOrder(order, options))
             .then(() => this._store.dispatch(this._paymentMethodActionCreator.loadPaymentMethod(methodId)))
