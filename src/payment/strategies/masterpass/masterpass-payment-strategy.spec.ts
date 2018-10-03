@@ -99,6 +99,7 @@ describe('MasterpassPaymentStragegy', () => {
             await strategy.initialize(initOptions);
             expect(scriptLoader.load).toHaveBeenLastCalledWith(false);
             expect(masterpassScript.checkout).toHaveBeenCalled();
+            expect(onPaymentSelectMock).not.toHaveBeenCalled();
         });
 
         it('loads the script and call the checkout method when initializing the strategy (testMode)', async () => {
@@ -106,6 +107,7 @@ describe('MasterpassPaymentStragegy', () => {
             await strategy.initialize(initOptions);
             expect(scriptLoader.load).toHaveBeenLastCalledWith(true);
             expect(masterpassScript.checkout).toHaveBeenCalled();
+            expect(onPaymentSelectMock).not.toHaveBeenCalled();
         });
 
         describe('widget', () => {
