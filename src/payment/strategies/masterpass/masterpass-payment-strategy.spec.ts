@@ -1,261 +1,120 @@
-import { createAction, Action } from '@bigcommerce/data-store';
+import { createClient as createPaymentClient } from '@bigcommerce/bigpay-client';
 import { createRequestSender, RequestSender } from '@bigcommerce/request-sender';
-import { createScriptLoader, ScriptLoader } from '@bigcommerce/script-loader';
-import { Observable } from 'rxjs';
+import { createScriptLoader } from '@bigcommerce/script-loader';
 
-import { getCartState } from '../../../cart/carts.mock';
 import { createCheckoutStore, CheckoutRequestSender, CheckoutStore, CheckoutValidator } from '../../../checkout';
 import { getCheckoutState } from '../../../checkout/checkouts.mock';
-import InvalidArgumentError from '../../../common/error/errors/invalid-argument-error';
-import MissingDataError from '../../../common/error/errors/missing-data-error';
+import { InvalidArgumentError } from '../../../common/error/errors';
 import { getConfigState } from '../../../config/configs.mock';
+import { OrderActionCreator, OrderRequestSender } from '../../../order';
+import {
+    PaymentActionCreator, PaymentInitializeOptions, PaymentMethod,
+    PaymentMethodActionCreator,
+    PaymentMethodRequestSender,
+    PaymentRequestSender
+} from '../../index';
+import { getMasterpass, getPaymentMethodsState } from '../../payment-methods.mock';
+
+import { Masterpass, MasterpassPaymentStrategy, MasterpassScriptLoader } from './index';
+import { getCartState } from '../../../cart/carts.mock';
 import { getCustomerState } from '../../../customer/customers.mock';
-import { OrderActionCreator, OrderActionType, OrderRequestBody } from '../../../order';
-import { getOrderRequestBody } from '../../../order/internal-orders.mock';
-import { createPaymentClient, createPaymentStrategyRegistry, PaymentActionCreator, PaymentMethod, PaymentMethodActionCreator } from '../../../payment';
-import { getMasterpass, getPaymentMethodsState } from '../../../payment/payment-methods.mock';
-import { Masterpass, MasterpassScriptLoader } from '../../../payment/strategies/masterpass';
-import { getMasterpassScriptMock } from '../../../payment/strategies/masterpass/masterpass.mock';
-import { PaymentActionType } from '../../payment-actions';
-import PaymentMethodRequestSender from '../../payment-method-request-sender';
-import { PaymentInitializeOptions } from '../../payment-request-options';
-import PaymentRequestSender from '../../payment-request-sender';
-import PaymentStrategyActionCreator from '../../payment-strategy-action-creator';
-import PaymentStrategy from '../payment-strategy';
+import { getMasterpassScriptMock } from './masterpass.mock';
 
-import MasterpassPaymentStrategy from './masterpass-payment-strategy';
+describe('MasterpassPaymentStragegy', () => {
+    // Described class
+    let strategy: MasterpassPaymentStrategy;
 
-describe('MasterpassPaymentStrategy', () => {
-    let container: HTMLDivElement;
-    let walletButton: HTMLAnchorElement;
-    let paymentMethodActionCreator: PaymentMethodActionCreator;
-    let paymentStrategyActionCreator: PaymentStrategyActionCreator;
-    let paymentActionCreator: PaymentActionCreator;
-    let paymentMethodMock: PaymentMethod;
-    let orderActionCreator: OrderActionCreator;
-    let store: CheckoutStore;
-    let strategy: PaymentStrategy;
-    let masterpassScriptLoader: MasterpassScriptLoader;
-    let masterpass: Masterpass;
+    // Strategy Constructor arguments dependencies
+    let orderRequestSender: OrderRequestSender;
     let requestSender: RequestSender;
 
-    beforeEach(() => {
-        paymentMethodMock = { ...getMasterpass(), initializationData: { digitalSessionId: 'digitalSessionId', merchantRequestId: '1234567890' } };
+    // Strategy constructor arguments
+    let store: CheckoutStore;
+    let orderActionCreator: OrderActionCreator;
+    let paymentActionCreator: PaymentActionCreator;
+    let paymentMethodActionCreator: PaymentMethodActionCreator;
+    let scriptLoader: MasterpassScriptLoader;
 
+    // Helper variables
+    let initOptions: PaymentInitializeOptions;
+    let paymentMethodMock: PaymentMethod;
+    let masterpassScript: Masterpass;
+    let paymentData: any;
+    let onPaymentSelectMock: any;
+
+    beforeEach(() => {
+        paymentData = { nonce: 'nonce123' };
+        onPaymentSelectMock = jest.fn();
+
+        // Strategy's constructor dependencies
+        requestSender = createRequestSender();
+        orderRequestSender = new OrderRequestSender(createRequestSender());
+
+        // Strategy's constructor arguments
         store = createCheckoutStore({
             checkout: getCheckoutState(),
-            customer: getCustomerState(),
             config: getConfigState(),
+            customer: getCustomerState(),
             cart: getCartState(),
             paymentMethods: getPaymentMethodsState(),
         });
 
-        jest.spyOn(store, 'dispatch')
-            .mockReturnValue(Promise.resolve(store.getState()));
+        paymentMethodMock = getMasterpass();
+        jest.spyOn(store.getState().paymentMethods, 'getPaymentMethod').mockReturnValue(paymentMethodMock);
 
-        jest.spyOn(store.getState().paymentMethods, 'getPaymentMethod')
-            .mockReturnValue(paymentMethodMock);
+        orderActionCreator = new OrderActionCreator(orderRequestSender, new CheckoutValidator(new CheckoutRequestSender(createRequestSender())));
+        paymentActionCreator = new PaymentActionCreator(new PaymentRequestSender(createPaymentClient()), orderActionCreator);
+        paymentMethodActionCreator = new PaymentMethodActionCreator(new PaymentMethodRequestSender(requestSender));
 
-        masterpass = getMasterpassScriptMock();
+        scriptLoader = new MasterpassScriptLoader(createScriptLoader());
+        masterpassScript = getMasterpassScriptMock();
+        jest.spyOn(scriptLoader, 'load').mockReturnValue(Promise.resolve(masterpassScript));
+        jest.spyOn(masterpassScript, 'checkout').mockReturnValue(true);
 
-        masterpassScriptLoader = new MasterpassScriptLoader(createScriptLoader());
-
-        jest.spyOn(masterpassScriptLoader, 'load')
-            .mockReturnValue(Promise.resolve(masterpass));
-        jest.spyOn(masterpass, 'checkout')
-            .mockReturnValue(true);
-
-        requestSender = createRequestSender();
-
-        const paymentClient = createPaymentClient(store);
-        const registry = createPaymentStrategyRegistry(store, paymentClient, requestSender);
-        const _requestSender: PaymentMethodRequestSender = new PaymentMethodRequestSender(requestSender);
-
-        paymentMethodActionCreator = new PaymentMethodActionCreator(_requestSender);
-        orderActionCreator = new OrderActionCreator(paymentClient, new CheckoutValidator(new CheckoutRequestSender(createRequestSender())));
-        paymentActionCreator = new PaymentActionCreator(new PaymentRequestSender(paymentClient), orderActionCreator);
-        paymentStrategyActionCreator = new PaymentStrategyActionCreator(registry, orderActionCreator);
-
-        jest.spyOn(paymentStrategyActionCreator, 'widgetInteraction');
-
+        // Strategy
         strategy = new MasterpassPaymentStrategy(
             store,
             orderActionCreator,
             paymentActionCreator,
             paymentMethodActionCreator,
-            masterpassScriptLoader
+            scriptLoader
         );
-
-        container = document.createElement('div');
-        walletButton = document.createElement('a');
-        container.setAttribute('id', 'login');
-        walletButton.setAttribute('id', 'mockButton');
-        document.body.appendChild(container);
-        document.body.appendChild(walletButton);
-
-        jest.spyOn(walletButton, 'addEventListener');
-        jest.spyOn(walletButton, 'removeEventListener');
-    });
-
-    afterEach(() => {
-        document.body.removeChild(container);
-        document.body.removeChild(walletButton);
-    });
-
-    it('creates an instance of MasterpassPaymentStrategy', () => {
-        expect(strategy).toBeInstanceOf(MasterpassPaymentStrategy);
     });
 
     describe('#initialize()', () => {
-        let masterpassOptions: PaymentInitializeOptions;
-
         beforeEach(() => {
-            masterpassOptions = { methodId: 'masterpass', masterpass: {} };
-        });
-
-        it('loads masterpass in test mode if enabled', async () => {
-            paymentMethodMock.config.testMode = true;
-
-            await strategy.initialize(masterpassOptions);
-
-            expect(masterpassScriptLoader.load).toHaveBeenLastCalledWith(true);
-        });
-
-        it('loads masterpass in test mode if enabled', async () => {
-            paymentMethodMock.config.testMode = true;
-
-            await strategy.initialize(masterpassOptions);
-
-            expect(masterpassScriptLoader.load).toHaveBeenLastCalledWith(true);
-        });
-
-        it('loads masterpass without test mode if disabled', async () => {
-            paymentMethodMock.config.testMode = false;
-
-            await strategy.initialize(masterpassOptions);
-
-            expect(masterpassScriptLoader.load).toHaveBeenLastCalledWith(false);
-        });
-
-        it('does not load masterpass if initialization options are not provided', async () => {
-            masterpassOptions = { methodId: 'masterpass'};
-            expect(() => strategy.initialize(masterpassOptions)).toThrowError(InvalidArgumentError);
-            expect(masterpassScriptLoader.load).not.toHaveBeenCalled();
-        });
-
-        it('does not load masterpass if initialization data is not provided', async () => {
-            jest.spyOn(store.getState().paymentMethods, 'getPaymentMethod')
-                .mockReturnValue(undefined);
-            try {
-                await strategy.initialize(masterpassOptions);
-            } catch (error) {
-                expect(error).toBeInstanceOf(MissingDataError);
-                expect(masterpassScriptLoader.load).not.toHaveBeenCalled();
-
-            }
-        });
-
-        it('does not load masterpass if store config is not provided', async () => {
-            jest.spyOn(store.getState().config, 'getStoreConfig')
-                .mockReturnValue(undefined);
-            try {
-                await strategy.initialize(masterpassOptions);
-            } catch (error) {
-                expect(error).toBeInstanceOf(MissingDataError);
-                expect(masterpassScriptLoader.load).not.toHaveBeenCalled();
-
-            }
-        });
-
-        it('does not load masterpass if checkout is not provided', async () => {
-            jest.spyOn(store.getState().config, 'getStoreConfig')
-                .mockReturnValue(undefined);
-            try {
-                await strategy.initialize(masterpassOptions);
-            } catch (error) {
-                expect(error).toBeInstanceOf(MissingDataError);
-                expect(masterpassScriptLoader.load).not.toHaveBeenCalled();
-
-            }
-        });
-    });
-
-    describe('#execute()', () => {
-        let masterpassOptions: PaymentInitializeOptions;
-        let orderRequestBody: OrderRequestBody;
-        let submitOrderAction: Observable<Action>;
-        let submitPaymentAction: Observable<Action>;
-
-        beforeEach(async () => {
-            orderRequestBody = getOrderRequestBody();
-            submitOrderAction = Observable.of(createAction(OrderActionType.SubmitOrderRequested));
-            submitPaymentAction = Observable.of(createAction(PaymentActionType.SubmitPaymentRequested));
-            masterpassOptions = { methodId: 'masterpass', masterpass: {} };
-            paymentMethodMock.initializationData = {
-                paymentCryptogram: '11111111111111',
-                eci: '11111111111',
-                reqTokenId: '111111111',
-                expDate: '11/11',
-                accountNum: '1111',
-                accountMask: '1111',
-                transactionId: 'MTExMTExMTEx',
+            initOptions = {
+                methodId: 'masterpass',
+                masterpass: {
+                    onPaymentSelect: onPaymentSelectMock,
+                },
             };
-
-            paymentActionCreator.submitPayment = jest.fn(() => submitPaymentAction);
-            orderActionCreator.submitOrder = jest.fn(() => submitOrderAction);
-            await strategy.initialize(masterpassOptions);
         });
 
-        it('fails to submit order when payment is not provided', async () => {
-            orderRequestBody.payment = undefined;
-            expect(() => strategy.execute(orderRequestBody, masterpassOptions)).toThrowError(InvalidArgumentError);
+        it('throws an invalid argument exception when masterpass options is missing', () => {
+            expect(() => strategy.initialize({ methodId: 'masterpass' })).toThrowError(InvalidArgumentError);
         });
 
-        it('calls submit order with the order request information', async () => {
-            await strategy.execute(orderRequestBody, masterpassOptions);
-            const { payment, ...order } = orderRequestBody;
-
-            expect(orderActionCreator.submitOrder).toHaveBeenCalledWith(order, expect.any(Object));
-            expect(store.dispatch).toHaveBeenCalledWith(submitOrderAction);
+        it('loads the script and call the checkout method when initializing the strategy', async () => {
+            await strategy.initialize(initOptions);
+            expect(scriptLoader.load).toHaveBeenLastCalledWith(false);
+            expect(masterpassScript.checkout).toHaveBeenCalled();
         });
 
-        it('calls submit order with the order request information', async () => {
-            await strategy.execute(orderRequestBody, masterpassOptions);
-            const { payment, ...order } = orderRequestBody;
-
-            expect(orderActionCreator.submitOrder).toHaveBeenCalledWith(order, expect.any(Object));
-            expect(store.dispatch).toHaveBeenCalledWith(submitOrderAction);
+        it('loads the script and call the checkout method when initializing the strategy (testMode)', async () => {
+            paymentMethodMock.config.testMode = true;
+            await strategy.initialize(initOptions);
+            expect(scriptLoader.load).toHaveBeenLastCalledWith(true);
+            expect(masterpassScript.checkout).toHaveBeenCalled();
         });
 
-        it('pass the options to submitOrder', async () => {
-            await strategy.execute(orderRequestBody, masterpassOptions);
-
-            expect(orderActionCreator.submitOrder).toHaveBeenCalledWith(expect.any(Object), masterpassOptions);
+        describe('widget', () => {
+            it('call the onPaymentSelect callback when payment data it is present', async () => {
+                paymentMethodMock.initializationData.paymentData = paymentData;
+                await strategy.initialize(initOptions);
+                expect(scriptLoader.load).not.toHaveBeenCalled();
+                expect(onPaymentSelectMock).toHaveBeenCalled();
+            });
         });
     });
-
-    describe('#deinitialize()', () => {
-        let masterpassOptions: PaymentInitializeOptions;
-        let submitOrderAction: Observable<Action>;
-
-        beforeEach(async () => {
-            masterpassOptions = { methodId: 'masterpass', masterpass: {} };
-            submitOrderAction = Observable.of(createAction(OrderActionType.SubmitOrderRequested));
-            orderActionCreator.submitOrder = jest.fn(() => submitOrderAction);
-            await strategy.initialize(masterpassOptions);
-        });
-
-        it('expect to not call the orderActionCreator', async () => {
-            await strategy.deinitialize(masterpassOptions);
-
-            expect(orderActionCreator.submitOrder).not.toHaveBeenCalled();
-        });
-
-        it('deinitializes strategy', async () => {
-            await strategy.deinitialize();
-            expect(await strategy.deinitialize()).toEqual(store.getState());
-        });
-
-    });
-
 });
