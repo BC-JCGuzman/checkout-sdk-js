@@ -1,6 +1,9 @@
 import { createClient as createPaymentClient } from '@bigcommerce/bigpay-client';
+import { Action } from '@bigcommerce/data-store';
+import createAction from '@bigcommerce/data-store/lib/create-action';
 import { createRequestSender, RequestSender } from '@bigcommerce/request-sender';
 import { createScriptLoader } from '@bigcommerce/script-loader';
+import { Observable } from 'rxjs';
 
 import { getCartState } from '../../../cart/carts.mock';
 import { createCheckoutStore, CheckoutRequestSender, CheckoutStore, CheckoutValidator } from '../../../checkout';
@@ -8,17 +11,18 @@ import { getCheckoutState } from '../../../checkout/checkouts.mock';
 import { InvalidArgumentError, MissingDataError } from '../../../common/error/errors';
 import { getConfigState } from '../../../config/configs.mock';
 import { getCustomerState } from '../../../customer/customers.mock';
-import { OrderActionCreator, OrderRequestSender } from '../../../order';
+import { OrderActionCreator, OrderActionType, OrderRequestBody, OrderRequestSender } from '../../../order';
 import {
     PaymentActionCreator, PaymentInitializeOptions, PaymentMethod,
-    PaymentMethodActionCreator,
+    PaymentMethodActionCreator, PaymentMethodActionType,
     PaymentMethodRequestSender,
     PaymentRequestSender
 } from '../../index';
-import { getMasterpass, getPaymentMethodsState } from '../../payment-methods.mock';
+import { getMasterpass, getPaymentMethodsState, getStripe } from '../../payment-methods.mock';
 
 import { Masterpass, MasterpassPaymentStrategy, MasterpassScriptLoader } from './index';
 import { getMasterpassScriptMock } from './masterpass.mock';
+import { PaymentActionType } from '../../payment-actions';
 
 describe('MasterpassPaymentStragegy', () => {
     // Described class
@@ -38,6 +42,7 @@ describe('MasterpassPaymentStragegy', () => {
     // Helper variables
     let initOptions: PaymentInitializeOptions;
     let paymentMethodMock: PaymentMethod;
+    let stripePaymentMethodMock: PaymentMethod;
     let masterpassScript: Masterpass;
     let paymentData: any;
     let onPaymentSelectMock: any;
@@ -60,6 +65,8 @@ describe('MasterpassPaymentStragegy', () => {
         });
 
         paymentMethodMock = getMasterpass();
+        stripePaymentMethodMock = getStripe();
+
         jest.spyOn(store.getState().paymentMethods, 'getPaymentMethod').mockReturnValue(paymentMethodMock);
 
         orderActionCreator = new OrderActionCreator(orderRequestSender, new CheckoutValidator(new CheckoutRequestSender(createRequestSender())));
@@ -87,6 +94,7 @@ describe('MasterpassPaymentStragegy', () => {
                 methodId: 'masterpass',
                 masterpass: {
                     onPaymentSelect: onPaymentSelectMock,
+                    // gateway: 'stripe',
                 },
             };
         });
@@ -135,6 +143,64 @@ describe('MasterpassPaymentStragegy', () => {
                 expect(scriptLoader.load).not.toHaveBeenCalled();
                 expect(onPaymentSelectMock).toHaveBeenCalled();
             });
+        });
+    });
+
+    describe('#execute', () => {
+        let payload: any;
+        let submitOrderAction: Observable<Action>;
+        let submitPaymentAction: Observable<Action>;
+        let loadPaymentMethodAction: Observable<Action>;
+
+        beforeEach(() => {
+                paymentData = { nonce: 'nonce123' };
+                initOptions = {
+                    methodId: 'masterpass',
+                    masterpass: {
+                        onPaymentSelect: onPaymentSelectMock,
+                        gateway: 'stripe',
+                    },
+                };
+
+                payload = {
+                    useStoreCredit: true,
+                    payment: {
+                        gatewayId: null,
+                        methodId: 'masterpass',
+                        paymentData: {
+                            nonce: 'nonce123',
+                        },
+                    },
+                };
+
+                // Submit Order
+                submitOrderAction = Observable.of(createAction(OrderActionType.SubmitOrderRequested));
+                orderActionCreator.submitOrder = jest.fn(() => submitOrderAction);
+
+                // Load Payment Method
+                loadPaymentMethodAction = Observable.of(createAction(PaymentMethodActionType.LoadPaymentMethodSucceeded, stripePaymentMethodMock, { methodId: stripePaymentMethodMock.id }));
+                jest.spyOn(paymentMethodActionCreator, 'loadPaymentMethod').mockReturnValue(loadPaymentMethodAction);
+
+                // Submit Payment
+                submitPaymentAction = Observable.of(createAction(PaymentActionType.SubmitPaymentRequested));
+                paymentActionCreator.submitPayment = jest.fn(() => submitPaymentAction);
+            }
+        );
+
+        it('fails to submit order when payment is not provided', async () => {
+            payload.payment = undefined;
+            expect(() => strategy.execute(payload)).toThrowError(InvalidArgumentError);
+        });
+
+        it('calls submit order with the order request information', async () => {
+            paymentMethodMock.initializationData.paymentData = paymentData;
+            await strategy.initialize(initOptions);
+            await strategy.execute(payload);
+
+            const { payment, ...order } = payload;
+
+            expect(orderActionCreator.submitOrder).toHaveBeenCalledWith(order, expect.any(Object));
+            expect(store.dispatch).toHaveBeenCalledWith(submitOrderAction);
         });
     });
 });
