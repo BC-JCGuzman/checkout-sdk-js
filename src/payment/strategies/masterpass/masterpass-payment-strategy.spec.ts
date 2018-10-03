@@ -2,10 +2,12 @@ import { createClient as createPaymentClient } from '@bigcommerce/bigpay-client'
 import { createRequestSender, RequestSender } from '@bigcommerce/request-sender';
 import { createScriptLoader } from '@bigcommerce/script-loader';
 
+import { getCartState } from '../../../cart/carts.mock';
 import { createCheckoutStore, CheckoutRequestSender, CheckoutStore, CheckoutValidator } from '../../../checkout';
 import { getCheckoutState } from '../../../checkout/checkouts.mock';
-import { InvalidArgumentError } from '../../../common/error/errors';
+import { InvalidArgumentError, MissingDataError } from '../../../common/error/errors';
 import { getConfigState } from '../../../config/configs.mock';
+import { getCustomerState } from '../../../customer/customers.mock';
 import { OrderActionCreator, OrderRequestSender } from '../../../order';
 import {
     PaymentActionCreator, PaymentInitializeOptions, PaymentMethod,
@@ -16,8 +18,6 @@ import {
 import { getMasterpass, getPaymentMethodsState } from '../../payment-methods.mock';
 
 import { Masterpass, MasterpassPaymentStrategy, MasterpassScriptLoader } from './index';
-import { getCartState } from '../../../cart/carts.mock';
-import { getCustomerState } from '../../../customer/customers.mock';
 import { getMasterpassScriptMock } from './masterpass.mock';
 
 describe('MasterpassPaymentStragegy', () => {
@@ -93,6 +93,24 @@ describe('MasterpassPaymentStragegy', () => {
 
         it('throws an invalid argument exception when masterpass options is missing', () => {
             expect(() => strategy.initialize({ methodId: 'masterpass' })).toThrowError(InvalidArgumentError);
+        });
+
+        it('throws an exception if checkout data is missing', async () => {
+            jest.spyOn(store.getState().checkout, 'getCheckout').mockReturnValue(null);
+            const error = 'Unable to proceed because checkout data is unavailable.';
+            await expect(strategy.initialize(initOptions)).rejects.toThrow(error);
+        });
+
+        it('throws an exception if store config is missing', async () => {
+            jest.spyOn(store.getState().config, 'getStoreConfig').mockReturnValue(null);
+            const error = 'Unable to proceed because configuration data is unavailable.';
+            await expect(strategy.initialize(initOptions)).rejects.toThrow(error);
+        });
+
+        it('throws an exception if payment method initialization data is missing', async () => {
+            paymentMethodMock.initializationData = null;
+            const error = 'Unable to proceed because payment method data is unavailable or not properly configured.';
+            await expect(strategy.initialize(initOptions)).rejects.toThrow(error);
         });
 
         it('loads the script and call the checkout method when initializing the strategy', async () => {
