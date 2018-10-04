@@ -18,11 +18,11 @@ import {
     PaymentMethodRequestSender,
     PaymentRequestSender
 } from '../../index';
+import { PaymentActionType } from '../../payment-actions';
 import { getMasterpass, getPaymentMethodsState, getStripe } from '../../payment-methods.mock';
 
 import { Masterpass, MasterpassPaymentStrategy, MasterpassScriptLoader } from './index';
 import { getMasterpassScriptMock } from './masterpass.mock';
-import { PaymentActionType } from '../../payment-actions';
 
 describe('MasterpassPaymentStragegy', () => {
     // Described class
@@ -63,6 +63,9 @@ describe('MasterpassPaymentStragegy', () => {
             cart: getCartState(),
             paymentMethods: getPaymentMethodsState(),
         });
+
+        jest.spyOn(store, 'dispatch')
+            .mockReturnValue(Promise.resolve(store.getState()));
 
         paymentMethodMock = getMasterpass();
         stripePaymentMethodMock = getStripe();
@@ -143,6 +146,13 @@ describe('MasterpassPaymentStragegy', () => {
                 expect(scriptLoader.load).not.toHaveBeenCalled();
                 expect(onPaymentSelectMock).toHaveBeenCalled();
             });
+
+            it('does not call the onPaymentSelect callback when it is not present', async () => {
+                paymentMethodMock.initializationData.paymentData = paymentData;
+                await strategy.initialize({ methodId: 'masterpass', masterpass: {} });
+                expect(scriptLoader.load).not.toHaveBeenCalled();
+                expect(onPaymentSelectMock).not.toHaveBeenCalled();
+            });
         });
     });
 
@@ -192,6 +202,11 @@ describe('MasterpassPaymentStragegy', () => {
             expect(() => strategy.execute(payload)).toThrowError(InvalidArgumentError);
         });
 
+        it('fails to submit when payment data is not provided', async () => {
+            const error = 'Unable to proceed because payment method data is unavailable or not properly configured.';
+            expect(() => strategy.execute(payload)).toThrowError(error);
+        });
+
         it('calls submit order with the order request information', async () => {
             paymentMethodMock.initializationData.paymentData = paymentData;
             await strategy.initialize(initOptions);
@@ -199,8 +214,24 @@ describe('MasterpassPaymentStragegy', () => {
 
             const { payment, ...order } = payload;
 
-            expect(orderActionCreator.submitOrder).toHaveBeenCalledWith(order, expect.any(Object));
+            expect(orderActionCreator.submitOrder).toHaveBeenCalledWith(order, undefined);
             expect(store.dispatch).toHaveBeenCalledWith(submitOrderAction);
+        });
+    });
+
+    describe('#deinitialize()', () => {
+        let masterpassOptions: PaymentInitializeOptions;
+        let submitOrderAction: Observable<Action>;
+
+        beforeEach(async () => {
+            masterpassOptions = { methodId: 'masterpass', masterpass: {} };
+            submitOrderAction = Observable.of(createAction(OrderActionType.SubmitOrderRequested));
+            orderActionCreator.submitOrder = jest.fn(() => submitOrderAction);
+            await strategy.initialize(masterpassOptions);
+        });
+
+        it('expect to not call the orderActionCreator', async () => {
+            await expect(strategy.deinitialize(masterpassOptions)).resolves.not.toBeNull();
         });
     });
 });

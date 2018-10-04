@@ -7,16 +7,14 @@ import {
 import { StoreConfig } from '../../../config';
 import { OrderActionCreator, OrderRequestBody } from '../../../order';
 import { PaymentArgumentInvalidError } from '../../errors';
-import { CreditCardInstrument, PaymentMethod, PaymentMethodActionCreator } from '../../index';
+import { PaymentMethod, PaymentMethodActionCreator } from '../../index';
 import PaymentActionCreator from '../../payment-action-creator';
 import { PaymentInitializeOptions, PaymentRequestOptions } from '../../payment-request-options';
 import PaymentStrategy from '../payment-strategy';
 
 import {
-    Masterpass,
     MasterpassCheckoutCallback,
     MasterpassCheckoutOptions,
-    MasterpassPaymentInitializeOptions,
     MasterpassScriptLoader
 } from './index';
 
@@ -35,9 +33,9 @@ export default class MasterpassPaymentStrategy extends PaymentStrategy {
     }
 
     initialize(options: PaymentInitializeOptions): Promise<InternalCheckoutSelectors> {
-        const { methodId } = options;
+        const { methodId, masterpass: masterpassOptions } = options;
 
-        if (!options.masterpass) {
+        if (!masterpassOptions) {
             throw new InvalidArgumentError('Unable to initialize payment because masterpass options is missing');
         }
 
@@ -49,11 +47,10 @@ export default class MasterpassPaymentStrategy extends PaymentStrategy {
                 return this._masterpassClientSetup().then(checkoutCallback => checkoutCallback());
             }
 
-            if (options.masterpass) {
-                this._paymentGateway = options.masterpass.gateway;
-                if (options.masterpass.onPaymentSelect) {
-                    options.masterpass.onPaymentSelect();
-                }
+            this._paymentGateway = masterpassOptions.gateway;
+
+            if (masterpassOptions.onPaymentSelect) {
+                masterpassOptions.onPaymentSelect();
             }
         }).then(() => {
             return super.initialize(options);
