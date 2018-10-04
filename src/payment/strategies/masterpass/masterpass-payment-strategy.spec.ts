@@ -8,10 +8,10 @@ import { Observable } from 'rxjs';
 import { getCartState } from '../../../cart/carts.mock';
 import { createCheckoutStore, CheckoutRequestSender, CheckoutStore, CheckoutValidator } from '../../../checkout';
 import { getCheckoutState } from '../../../checkout/checkouts.mock';
-import { InvalidArgumentError, MissingDataError } from '../../../common/error/errors';
+import { InvalidArgumentError } from '../../../common/error/errors';
 import { getConfigState } from '../../../config/configs.mock';
 import { getCustomerState } from '../../../customer/customers.mock';
-import { OrderActionCreator, OrderActionType, OrderRequestBody, OrderRequestSender } from '../../../order';
+import { OrderActionCreator, OrderActionType, OrderRequestSender } from '../../../order';
 import {
     PaymentActionCreator, PaymentInitializeOptions, PaymentMethod,
     PaymentMethodActionCreator, PaymentMethodActionType,
@@ -50,6 +50,14 @@ describe('MasterpassPaymentStragegy', () => {
     beforeEach(() => {
         paymentData = { nonce: 'nonce123' };
         onPaymentSelectMock = jest.fn();
+
+        initOptions = {
+            methodId: 'masterpass',
+            masterpass: {
+                onPaymentSelect: onPaymentSelectMock,
+                gateway: 'stripe',
+            },
+        };
 
         // Strategy's constructor dependencies
         requestSender = createRequestSender();
@@ -92,16 +100,6 @@ describe('MasterpassPaymentStragegy', () => {
     });
 
     describe('#initialize()', () => {
-        beforeEach(() => {
-            initOptions = {
-                methodId: 'masterpass',
-                masterpass: {
-                    onPaymentSelect: onPaymentSelectMock,
-                    // gateway: 'stripe',
-                },
-            };
-        });
-
         it('throws an invalid argument exception when masterpass options is missing', () => {
             expect(() => strategy.initialize({ methodId: 'masterpass' })).toThrowError(InvalidArgumentError);
         });
@@ -162,15 +160,13 @@ describe('MasterpassPaymentStragegy', () => {
         let submitPaymentAction: Observable<Action>;
         let loadPaymentMethodAction: Observable<Action>;
 
+        it('fails to submit order when payment is not provided', async () => {
+            payload.payment = undefined;
+            expect(() => strategy.execute(payload)).toThrowError(InvalidArgumentError);
+        });
+
         beforeEach(() => {
                 paymentData = { nonce: 'nonce123' };
-                initOptions = {
-                    methodId: 'masterpass',
-                    masterpass: {
-                        onPaymentSelect: onPaymentSelectMock,
-                        gateway: 'stripe',
-                    },
-                };
 
                 payload = {
                     useStoreCredit: true,
@@ -196,11 +192,6 @@ describe('MasterpassPaymentStragegy', () => {
                 paymentActionCreator.submitPayment = jest.fn(() => submitPaymentAction);
             }
         );
-
-        it('fails to submit order when payment is not provided', async () => {
-            payload.payment = undefined;
-            expect(() => strategy.execute(payload)).toThrowError(InvalidArgumentError);
-        });
 
         it('fails to submit when payment data is not provided', async () => {
             const error = 'Unable to proceed because payment method data is unavailable or not properly configured.';
