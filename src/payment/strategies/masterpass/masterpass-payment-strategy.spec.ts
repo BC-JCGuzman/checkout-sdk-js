@@ -5,6 +5,12 @@ import { createRequestSender, RequestSender } from '@bigcommerce/request-sender'
 import { createScriptLoader } from '@bigcommerce/script-loader';
 import { Observable } from 'rxjs';
 
+import {
+    PaymentActionCreator, PaymentInitializeOptions,
+    PaymentMethod,
+    PaymentMethodActionCreator, PaymentMethodActionType,
+    PaymentMethodRequestSender, PaymentRequestSender
+} from '../../';
 import { getCartState } from '../../../cart/carts.mock';
 import { createCheckoutStore, CheckoutRequestSender, CheckoutStore, CheckoutValidator } from '../../../checkout';
 import { getCheckoutState } from '../../../checkout/checkouts.mock';
@@ -12,16 +18,11 @@ import { InvalidArgumentError } from '../../../common/error/errors';
 import { getConfigState } from '../../../config/configs.mock';
 import { getCustomerState } from '../../../customer/customers.mock';
 import { OrderActionCreator, OrderActionType, OrderRequestSender } from '../../../order';
-import {
-    PaymentActionCreator, PaymentInitializeOptions, PaymentMethod,
-    PaymentMethodActionCreator, PaymentMethodActionType,
-    PaymentMethodRequestSender,
-    PaymentRequestSender
-} from '../../index';
 import { PaymentActionType } from '../../payment-actions';
 import { getMasterpass, getPaymentMethodsState, getStripe } from '../../payment-methods.mock';
 
-import { Masterpass, MasterpassPaymentStrategy, MasterpassScriptLoader } from './index';
+import { MasterpassPaymentStrategy, MasterpassScriptLoader } from './';
+import { Masterpass } from './masterpass';
 import { getMasterpassScriptMock } from './masterpass.mock';
 
 describe('MasterpassPaymentStragegy', () => {

@@ -1,3 +1,10 @@
+import { PaymentStrategy } from '../';
+import {
+    PaymentActionCreator,
+    PaymentInitializeOptions,
+    PaymentMethodActionCreator,
+    PaymentRequestOptions
+} from '../../';
 import { Checkout, CheckoutStore, InternalCheckoutSelectors } from '../../../checkout';
 import {
     InvalidArgumentError,
@@ -7,16 +14,10 @@ import {
 import { StoreConfig } from '../../../config';
 import { OrderActionCreator, OrderRequestBody } from '../../../order';
 import { PaymentArgumentInvalidError } from '../../errors';
-import { PaymentMethod, PaymentMethodActionCreator } from '../../index';
-import PaymentActionCreator from '../../payment-action-creator';
-import { PaymentInitializeOptions, PaymentRequestOptions } from '../../payment-request-options';
-import PaymentStrategy from '../payment-strategy';
+import PaymentMethod from '../../payment-method';
 
-import {
-    MasterpassCheckoutCallback,
-    MasterpassCheckoutOptions,
-    MasterpassScriptLoader
-} from './index';
+import { MasterpassCheckoutCallback, MasterpassCheckoutOptions } from './masterpass';
+import MasterpassScriptLoader from './masterpass-script-loader';
 
 export default class MasterpassPaymentStrategy extends PaymentStrategy {
     private _paymentMethod?: PaymentMethod;
