@@ -124,9 +124,22 @@ describe('MasterpassPaymentStragegy', () => {
         });
 
         it('loads the script and call the checkout method when initializing the strategy', async () => {
+            const payload = {
+                allowedCardTypes: [
+                    'visa',
+                        'amex',
+                        'mastercard',
+                    ],
+                amount: '190.00',
+                cartId: 'b20deef40f9699e48671bbc3fef6ca44dc80e3c7',
+                checkoutId: 'checkoutId',
+                currency: 'USD',
+                suppressShippingAddress: true,
+            };
+
             await strategy.initialize(initOptions);
             expect(scriptLoader.load).toHaveBeenLastCalledWith(false);
-            expect(masterpassScript.checkout).toHaveBeenCalled();
+            expect(masterpassScript.checkout).toHaveBeenCalledWith(payload);
             expect(onPaymentSelectMock).not.toHaveBeenCalled();
         });
 

@@ -91,6 +91,7 @@ export default class MasterpassPaymentStrategy extends PaymentStrategy {
             amount: checkout.subtotal.toFixed(2),
             currency: storeConfig.currency.code,
             cartId: checkout.cart.id,
+            suppressShippingAddress: true,
         };
     }
 
