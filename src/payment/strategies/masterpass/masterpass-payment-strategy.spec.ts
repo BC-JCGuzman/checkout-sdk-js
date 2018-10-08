@@ -127,9 +127,9 @@ describe('MasterpassPaymentStragegy', () => {
             const payload = {
                 allowedCardTypes: [
                     'visa',
-                        'amex',
-                        'mastercard',
-                    ],
+                    'amex',
+                    'mastercard',
+                ],
                 amount: '190.00',
                 cartId: 'b20deef40f9699e48671bbc3fef6ca44dc80e3c7',
                 checkoutId: 'checkoutId',
