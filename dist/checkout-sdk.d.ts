@@ -2379,6 +2379,7 @@ declare interface LineItem {
     name: string;
     url: string;
     quantity: number;
+    brand: string;
     isTaxable: boolean;
     imageUrl: string;
     discounts: Array<{
@@ -2425,6 +2426,17 @@ declare interface MasterpassCustomerInitializeOptions {
      * The ID of a container which the checkout button should be inserted into.
      */
     container: string;
+}
+
+declare interface MasterpassPaymentInitializeOptions {
+    /**
+     * The gateway where the masterpass payment will be processed.
+     */
+    gateway?: string;
+    /**
+     * A callback that gets called when the customer selects a payment option.
+     */
+    onPaymentSelect?(): void;
 }
 
 declare interface NonceGenerationError {
@@ -2540,6 +2552,11 @@ declare interface PaymentInitializeOptions extends PaymentRequestOptions {
      * They can be omitted unless you need to support Klarna.
      */
     klarna?: KlarnaPaymentInitializeOptions;
+    /**
+     * The options that are required to initialize the Masterpass payment method.
+     * They can be omitted unless you need to support Masterpass.
+     */
+    masterpass?: MasterpassPaymentInitializeOptions;
     /**
      * The options that are required to initialize the Square payment method.
      * They can be omitted unless you need to support Square.
