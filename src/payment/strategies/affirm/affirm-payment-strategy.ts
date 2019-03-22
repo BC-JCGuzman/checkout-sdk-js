@@ -60,9 +60,6 @@ export default class AffirmPaymentStrategy implements PaymentStrategy {
                 affirm.checkout(this._getCheckoutInformation(useStoreCredit));
 
                 return new Promise((resolve, reject) => {
-                    if (!affirm) {
-                        throw new NotInitializedError(NotInitializedErrorType.PaymentNotInitialized);
-                    }
                     affirm.checkout.open({
                         onFail: () => { reject(new PaymentMethodCancelledError()); },
                         onSuccess: (successObject: SuccessAffirm) => { resolve(successObject); },
