@@ -26,8 +26,9 @@ import PaymentMethodRequestSender from '../../payment-method-request-sender';
 import { getAffirm } from '../../payment-methods.mock';
 import PaymentRequestSender from '../../payment-request-sender';
 
-import { AffirmPaymentStrategy, AffirmScriptLoader } from './';
 import { Affirm } from './affirm';
+import AffirmPaymentStrategy from './affirm-payment-strategy';
+import AffirmScriptLoader from './affirm-script-loader';
 import { getAffirmScriptMock } from './affirm.mock';
 
 describe('AffirmPaymentStrategy', () => {
@@ -203,12 +204,6 @@ describe('AffirmPaymentStrategy', () => {
             orderActionCreator.submitOrder = jest.fn(() => submitOrderAction);
 
             await strategy.initialize(affirmOptions);
-        });
-
-        it('expect to not call the orderActionCreator', async () => {
-            await strategy.deinitialize(affirmOptions);
-
-            expect(orderActionCreator.submitOrder).not.toHaveBeenCalled();
         });
 
         it('deinitializes strategy', async () => {
