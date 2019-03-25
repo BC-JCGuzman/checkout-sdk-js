@@ -8,7 +8,7 @@ import { getBillingAddressState } from '../../../billing/billing-addresses.mock'
 import { getCartState } from '../../../cart/carts.mock';
 import { createCheckoutStore, CheckoutRequestSender, CheckoutStore, CheckoutValidator } from '../../../checkout';
 import { getCheckoutState } from '../../../checkout/checkouts.mock';
-import { MissingDataError, NotInitializedError } from '../../../common/error/errors';
+import { MissingDataError } from '../../../common/error/errors';
 import { getConfigState } from '../../../config/configs.mock';
 import { getCustomerState } from '../../../customer/customers.mock';
 import { OrderActionCreator, OrderActionType, OrderRequestBody, OrderRequestSender } from '../../../order';
@@ -168,11 +168,7 @@ describe('AffirmPaymentStrategy', () => {
             await expect(strategy.execute(payload)).rejects.toThrow(PaymentMethodCancelledError);
         });
 
-        it('does not create payment if moethodId not specified', async () => {
-            await expect(strategy.execute(payload)).rejects.toThrow(NotInitializedError);
-        });
-
-        it('does not create order if paymentId is not set', () => {
+        it('does not create order/payment if paymentId is not set', () => {
             payload.payment = undefined;
             const error = 'Unable to submit payment for the order because the payload is invalid. Make sure the following fields are provided correctly: payment.methodId.';
             expect(() => strategy.execute(payload)).toThrowError(error);
@@ -195,17 +191,6 @@ describe('AffirmPaymentStrategy', () => {
     });
 
     describe('#deinitialize()', () => {
-
-        let submitOrderAction: Observable<Action>;
-        const affirmOptions = { methodId: 'affirm', gatewayId: undefined };
-
-        beforeEach(async () => {
-            submitOrderAction = of(createAction(OrderActionType.SubmitOrderRequested));
-            orderActionCreator.submitOrder = jest.fn(() => submitOrderAction);
-
-            await strategy.initialize(affirmOptions);
-        });
-
         it('deinitializes strategy', async () => {
             await strategy.deinitialize();
             expect(await strategy.deinitialize()).toEqual(store.getState());

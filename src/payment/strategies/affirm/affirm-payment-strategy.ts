@@ -32,20 +32,25 @@ export default class AffirmPaymentStrategy implements PaymentStrategy {
                     throw new MissingDataError(MissingDataErrorType.MissingPaymentMethod);
                 }
 
-                const { config: {testMode}, clientToken: publicKey } = paymentMethod;
+                const { config: { testMode }, clientToken: publicKey } = paymentMethod;
 
-                return this._affirmScriptLoader.load(publicKey, testMode)
-                    .then(affirm => {
-                        this.affirm = affirm;
+                return this._affirmScriptLoader.load(publicKey, testMode);
 
-                        return this._store.getState();
-                    });
+            }).then(affirm => {
+                this.affirm = affirm;
+
+                return this._store.getState();
             });
     }
 
     execute(payload: OrderRequestBody, options?: PaymentRequestOptions): Promise<InternalCheckoutSelectors> {
         const paymentId = payload.payment && payload.payment.methodId;
         const { useStoreCredit } = payload;
+        const { affirm } = this;
+
+        if (!affirm) {
+            throw new NotInitializedError(NotInitializedErrorType.PaymentNotInitialized);
+        }
 
         if (!paymentId) {
             throw new PaymentArgumentInvalidError(['payment.methodId']);
@@ -53,10 +58,6 @@ export default class AffirmPaymentStrategy implements PaymentStrategy {
 
         return this._store.dispatch(this._orderActionCreator.submitOrder({ useStoreCredit }, options))
             .then((): Promise<SuccessAffirm> => {
-                const affirm = this.affirm;
-                if (!affirm) {
-                    throw new NotInitializedError(NotInitializedErrorType.PaymentNotInitialized);
-                }
                 affirm.checkout(this._getCheckoutInformation(useStoreCredit));
 
                 return new Promise((resolve, reject) => {
@@ -71,11 +72,8 @@ export default class AffirmPaymentStrategy implements PaymentStrategy {
             })
             .then(result => {
 
-                if (!options) {
-                    throw new NotInitializedError(NotInitializedErrorType.PaymentNotInitialized);
-                }
                 const paymentPayload = {
-                    methodId: options.methodId,
+                    methodId: paymentId,
                     paymentData: { nonce: result.checkout_token },
                 };
 
@@ -120,10 +118,10 @@ export default class AffirmPaymentStrategy implements PaymentStrategy {
         }
         const grandTotal = useStoreCredit ? checkout.grandTotal - checkout.customer.storeCredit : checkout.grandTotal;
 
-        return  {
+        return {
             merchant: {
-                user_confirmation_url: `${config.links.checkoutLink}.php?action=set_external_checkout&provider=affirm&status=success`,
-                user_cancel_url: `${config.links.checkoutLink}.php?action=set_external_checkout&provider=affirm&status=cancelled`,
+                user_confirmation_url: config.links.checkoutLink,
+                user_cancel_url: config.links.checkoutLink,
                 user_confirmation_url_action: 'POST',
             },
             shipping: this._getShippingAddress(),
