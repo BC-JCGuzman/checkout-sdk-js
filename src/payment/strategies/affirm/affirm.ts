@@ -15,17 +15,21 @@ interface AffirmCheckout {
 }
 
 interface AffirmCallback {
-    onFail(): void;
-    onSuccess(success: SuccessAffirm): void;
+    onFail(onFail: AffirmFailResponse): void;
+    onSuccess(success: AffirmSuccessResponse): void;
 }
 
 export interface AffirmHostWindow extends Window {
     affirm?: Affirm;
 }
 
-export interface SuccessAffirm {
+export interface AffirmSuccessResponse {
     checkout_token: string;
     created: string;
+}
+
+export interface AffirmFailResponse {
+    reason: string;
 }
 
 export interface AffirmRequestData {

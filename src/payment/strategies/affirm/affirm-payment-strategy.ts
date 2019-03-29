@@ -2,18 +2,17 @@ import { CheckoutStore, InternalCheckoutSelectors } from '../../../checkout';
 import { MissingDataError, MissingDataErrorType, NotInitializedError, NotInitializedErrorType } from '../../../common/error/errors';
 import { OrderActionCreator, OrderRequestBody } from '../../../order';
 import { OrderFinalizationNotRequiredError } from '../../../order/errors';
-import { PaymentArgumentInvalidError, PaymentMethodCancelledError } from '../../errors';
+import { PaymentArgumentInvalidError, PaymentMethodCancelledError, PaymentMethodInvalidError } from '../../errors';
 import PaymentActionCreator from '../../payment-action-creator';
 import PaymentMethodActionCreator from '../../payment-method-action-creator';
 import { PaymentInitializeOptions, PaymentRequestOptions } from '../../payment-request-options';
 import PaymentStrategy from '../payment-strategy';
 
-import { Affirm, AffirmAddress, AffirmDiscount, AffirmItem, AffirmRequestData, SuccessAffirm } from './affirm';
+import { Affirm, AffirmAddress, AffirmDiscount, AffirmFailResponse, AffirmItem, AffirmRequestData, AffirmSuccessResponse } from './affirm';
 import AffirmScriptLoader from './affirm-script-loader';
 
 export default class AffirmPaymentStrategy implements PaymentStrategy {
-
-    private affirm?: Affirm;
+    private _affirm?: Affirm;
 
     constructor(
         private _store: CheckoutStore,
@@ -35,45 +34,46 @@ export default class AffirmPaymentStrategy implements PaymentStrategy {
                 const { config: { testMode }, clientToken: publicKey } = paymentMethod;
 
                 return this._affirmScriptLoader.load(publicKey, testMode);
-
-            }).then(affirm => {
-                this.affirm = affirm;
+            })
+            .then(affirm => {
+                this._affirm = affirm;
 
                 return this._store.getState();
             });
     }
 
     execute(payload: OrderRequestBody, options?: PaymentRequestOptions): Promise<InternalCheckoutSelectors> {
-        const paymentId = payload.payment && payload.payment.methodId;
+        const methodId = payload.payment && payload.payment.methodId;
         const { useStoreCredit } = payload;
-        const { affirm } = this;
+        const { _affirm } = this;
 
-        if (!affirm) {
+        if (!_affirm) {
             throw new NotInitializedError(NotInitializedErrorType.PaymentNotInitialized);
         }
 
-        if (!paymentId) {
+        if (!methodId) {
             throw new PaymentArgumentInvalidError(['payment.methodId']);
         }
 
         return this._store.dispatch(this._orderActionCreator.submitOrder({ useStoreCredit }, options))
-            .then((): Promise<SuccessAffirm> => {
-                affirm.checkout(this._getCheckoutInformation(useStoreCredit));
+            .then((): Promise<AffirmSuccessResponse> => {
+                _affirm.checkout(this._getCheckoutInformation(useStoreCredit));
 
                 return new Promise((resolve, reject) => {
-                    affirm.checkout.open({
-                        onFail: () => { reject(new PaymentMethodCancelledError()); },
-                        onSuccess: (successObject: SuccessAffirm) => { resolve(successObject); },
+                    _affirm.checkout.open({
+                        onFail: (failObject: AffirmFailResponse) => {
+                            failObject.reason === 'canceled' ? reject(new PaymentMethodCancelledError()) : reject(new PaymentMethodInvalidError());
+                            },
+                        onSuccess: successObject => { resolve(successObject); },
                     });
-                    affirm.ui.error.on('close', () => {
+                    _affirm.ui.error.on('close', () => {
                         reject(new PaymentMethodCancelledError());
                     });
                 });
             })
             .then(result => {
-
                 const paymentPayload = {
-                    methodId: paymentId,
+                    methodId,
                     paymentData: { nonce: result.checkout_token },
                 };
 
@@ -82,8 +82,8 @@ export default class AffirmPaymentStrategy implements PaymentStrategy {
     }
 
     deinitialize(options?: PaymentRequestOptions): Promise<InternalCheckoutSelectors> {
-        if (this.affirm) {
-            this.affirm = undefined;
+        if (this._affirm) {
+            this._affirm = undefined;
         }
 
         return Promise.resolve(this._store.getState());
@@ -95,19 +95,19 @@ export default class AffirmPaymentStrategy implements PaymentStrategy {
 
     private _getCheckoutInformation(useStoreCredit: boolean = false): AffirmRequestData {
         const state = this._store.getState();
-        const checkout = state.checkout.getCheckout();
         const config = state.config.getStoreConfig();
         const consignments = state.consignments.getConsignments();
+        const order = state.order.getOrder();
 
         if (!config) {
             throw new MissingDataError(MissingDataErrorType.MissingCheckoutConfig);
         }
 
-        if (!checkout) {
+        if (!consignments) {
             throw new MissingDataError(MissingDataErrorType.MissingCheckout);
         }
 
-        if (!consignments) {
+        if (!order) {
             throw new MissingDataError(MissingDataErrorType.MissingCheckout);
         }
 
@@ -116,7 +116,6 @@ export default class AffirmPaymentStrategy implements PaymentStrategy {
         if (!consignment || !consignment.selectedShippingOption) {
             throw new MissingDataError(MissingDataErrorType.MissingCheckout);
         }
-        const grandTotal = useStoreCredit ? checkout.grandTotal - checkout.customer.storeCredit : checkout.grandTotal;
 
         return {
             merchant: {
@@ -132,10 +131,10 @@ export default class AffirmPaymentStrategy implements PaymentStrategy {
                 shipping_type: consignment.selectedShippingOption.type,
                 mode: 'modal',
             },
-            order_id: checkout.orderId ? checkout.orderId.toString() : '',
-            shipping_amount: checkout.shippingCostTotal * 100,
-            tax_amount: checkout.taxTotal * 100,
-            total: (grandTotal > 0 ? grandTotal : 0) * 100,
+            order_id: order.orderId ? order.orderId.toString() : '',
+            shipping_amount: order.shippingCostTotal * 100,
+            tax_amount: order.taxTotal * 100,
+            total: order.orderAmount * 100,
         };
 
     }
